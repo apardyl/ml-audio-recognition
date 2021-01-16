@@ -4,8 +4,8 @@ torch==1.7.1
 torchvision==0.8.2
 matplotlib==3.3.3
 notebook==6.2.0
-librosa==0.8.0
 jupyter==1.0.0
 scikit-learn==0.24.0
 scikit-image==0.18.1
 torchsummary==1.5.1
+torchaudio==0.7.2
