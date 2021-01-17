@@ -1,3 +1,4 @@
 data/fma*
 venv/
 .idea/
+*.pck
