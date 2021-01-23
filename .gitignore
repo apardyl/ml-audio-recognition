@@ -1,4 +1,5 @@
 data/fma*
 venv/
 .idea/
-*.pck
+checkpoint*
+__pycache__/

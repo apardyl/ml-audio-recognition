@@ -11,3 +11,4 @@ torchsummary==1.5.1
 torchaudio==0.7.2
 faiss-cpu==1.6.5
 tensorboard===2.4.1
+tensorflow==2.4.1
