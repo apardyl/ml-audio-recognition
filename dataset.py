@@ -85,6 +85,37 @@ class AudioSamplePairDataset(Dataset):
         return len(self.dataset)
 
 
+class AudioSamplePairDualDataset(Dataset):
+    def __init__(self, root_path: str, shuffle: bool = True, test=False, limit=-1):
+        self.root_path = root_path
+        dataset = list(str(p) for p in pathlib.Path(root_path).rglob('*.pck'))
+        dataset = dataset[0:limit]
+
+        train_dataset, test_dataset = train_test_split(dataset, test_size=0.2)
+        dataset = test_dataset if test else train_dataset
+
+        if shuffle:
+            random.shuffle(dataset)
+        self.dataset = dataset
+
+    def __getitem__(self, index):
+        val = torch.load(self.dataset[index])
+
+        x = transform_random_sample(val)
+        x_s = transform_melspectrogram(x, False)
+        x_l = transform_melspectrogram(x, True)
+
+        y = transform_random_sample(val)
+        y = transform_distort_audio(y)
+        y_s = transform_melspectrogram(y, False)
+        y_l = transform_melspectrogram(y, True)
+
+        return x_s, y_s, x_l, y_l
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+
 def show_spec(x):
     plt.imshow(x.squeeze())
     plt.show()

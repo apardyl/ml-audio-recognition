@@ -56,13 +56,17 @@ def gen_samples_for_track(file_path, out_dir):
             raise ex
 
 
-with torch.no_grad():
-    mp3_files = list(str(p) for p in pathlib.Path('./data/fma_small').rglob('*.mp3'))
-    last_proc = 0
-    for idx, p in enumerate(mp3_files):
-        proc = idx * 100 // len(mp3_files)
-        if proc > last_proc:
-            last_proc = proc
-            print('{}%'.format(proc), flush=True)
+def build_dataset():
+    with torch.no_grad():
+        mp3_files = list(str(p) for p in pathlib.Path('./data/fma_small').rglob('*.mp3'))
+        last_proc = 0
+        for idx, p in enumerate(mp3_files):
+            proc = idx * 100 // len(mp3_files)
+            if proc > last_proc:
+                last_proc = proc
+                print('{}%'.format(proc), flush=True)
+            gen_samples_for_track(p, OUT_PATH)
 
-        gen_samples_for_track(p, OUT_PATH)
+
+if __name__ == "__main__":
+    build_dataset()

@@ -1,3 +1,4 @@
+import argparse
 import copy
 import datetime
 import os
@@ -6,17 +7,18 @@ import sys
 import warnings
 
 import numpy as np
+import tensorboard as tb
+import tensorflow as tf
 import torch.utils.data
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
-import tensorflow as tf
-import tensorboard as tb
 
 from config import TRAIN_BATCH_SIZE, TEST_BATCH_SIZE
 from dataset import AudioSamplePairDataset
 from models import SmallEncoder, LargeEncoder
 from searcher import Searcher
+from utils import load_train_state, save_train_state
 
 tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 
@@ -44,7 +46,7 @@ def evaluate_encoder(encoder: nn.Module, test_loader: torch.utils.data.DataLoade
                 epoch_losses.append(loss_val.item())
             embeddings_x.append(x_enc)
             embeddings_y.append(y_pos_enc)
-            print('    Test batch {} of {}'.format(step, len(test_loader)), file=sys.stderr)
+            print('    Test batch {} of {}'.format(step + 1, len(test_loader)), file=sys.stderr)
 
         embeddings_x = torch.cat(embeddings_x, dim=0)
         embeddings_y = torch.cat(embeddings_y, dim=0)
@@ -73,32 +75,7 @@ def evaluate_encoder(encoder: nn.Module, test_loader: torch.utils.data.DataLoade
         return correct_1 * 100, correct_100 * 100, lookup, embeddings_x, embeddings_y
 
 
-def evaluate_all(small_encoder: SmallEncoder, large_encoder: LargeEncoder, test_loader: torch.utils.data.DataLoader):
-    _, lookup_score, lookup, embeddings_x, embeddings_y = evaluate_encoder(small_encoder, test_loader)
-
-
-def save_train_state(epoch: int, model: nn.Module, optimizer: torch.optim.Optimizer, scheduler, best_score: float,
-                     file_path):
-    torch.save({
-        'epoch': epoch,
-        'model_state': model.state_dict(),
-        'optimizer_state': optimizer.state_dict(),
-        'scheduler': scheduler.state_dict(),
-        'best_score': best_score,
-    }, file_path)
-
-
-def load_train_state(file_path, model: nn.Module, optimizer: torch.optim.Optimizer, scheduler):
-    data = torch.load(file_path)
-    model.load_state_dict(data['model_state'])
-    optimizer.load_state_dict(data['optimizer_state'])
-    if 'scheduler' in data:
-        scheduler.load_state_dict(data['scheduler'])
-    return data['epoch'], data.get('best_score', 0)
-
-
-def train_encoder(train_loader, test_loader, encoder):
-    epochs = 30
+def train_encoder(train_loader, test_loader, encoder, epochs=30):
     LR = 0.01
 
     summary(model=encoder, input_size=next(iter(train_loader))[0].shape[1:], device='cuda')
@@ -135,7 +112,7 @@ def train_encoder(train_loader, test_loader, encoder):
             loss_val.backward()
             optimizer.step()
             epoch_losses.append(loss_val.item())
-            print('    Batch {} of {} loss: {}, lr: {}'.format(step, len(train_loader),
+            print('    Batch {} of {} loss: {}, lr: {}'.format(step + 1, len(train_loader),
                                                                loss_val.item(), optimizer.param_groups[0]["lr"]),
                   file=sys.stderr)
         print(f'Train loss: {np.mean(epoch_losses):.4f}')
@@ -167,24 +144,38 @@ def train_encoder(train_loader, test_loader, encoder):
     return best_model, best_score
 
 
-warnings.simplefilter("ignore")
+def train(large_model=False, epochs=30):
+    print('Training {} encoder for {} epochs'.format('large' if large_model else 'small', epochs))
+    train_data = AudioSamplePairDataset(root_path='data/fma_small_samples', test=False, large=large_model)
+    test_data = AudioSamplePairDataset(root_path='data/fma_small_samples', test=True, large=large_model)
+    train_loader = torch.utils.data.DataLoader(train_data,
+                                               batch_size=TRAIN_BATCH_SIZE,
+                                               shuffle=True,
+                                               num_workers=8,
+                                               pin_memory=True,
+                                               prefetch_factor=4)
+    test_loader = torch.utils.data.DataLoader(test_data,
+                                              batch_size=TEST_BATCH_SIZE,
+                                              shuffle=True,
+                                              num_workers=8,
+                                              pin_memory=True,
+                                              prefetch_factor=4)
+    encoder = LargeEncoder() if large_model else SmallEncoder()
+    encoder = encoder.cuda()
+    train_encoder(train_loader, test_loader, encoder, epochs)
 
-train_data = AudioSamplePairDataset(root_path='data/fma_small_samples', test=False, large=True)
-test_data = AudioSamplePairDataset(root_path='data/fma_small_samples', test=True, large=True)
 
-train_loader = torch.utils.data.DataLoader(train_data,
-                                           batch_size=TRAIN_BATCH_SIZE,
-                                           shuffle=True,
-                                           num_workers=8,
-                                           pin_memory=True,
-                                           prefetch_factor=4)
-test_loader = torch.utils.data.DataLoader(test_data,
-                                          batch_size=TEST_BATCH_SIZE,
-                                          shuffle=True,
-                                          num_workers=8,
-                                          pin_memory=True,
-                                          prefetch_factor=4)
+if __name__ == "__main__":
+    warnings.simplefilter("ignore")
+    # noinspection PyTypeChecker
+    parser = argparse.ArgumentParser(description='Train models.',
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--model', type=str, choices=['small', 'large', 'both'], default='both',
+                        help='Which model to train')
+    parser.add_argument('--epochs', type=int, default=30, help='How many epochs to train for')
+    args = parser.parse_args()
 
-encoder = LargeEncoder()
-encoder = encoder.cuda()
-encoder, accu = train_encoder(train_loader, test_loader, encoder)
+    if args.model in ['small', 'both']:
+        train(False, args.epochs)
+    if args.model in ['large', 'both']:
+        train(True, args.epochs)
