@@ -21,7 +21,6 @@ if __name__ == "__main__":
     parser.add_argument('--large_encoder', type=str, help='Path to saved LargeEncoder model', required=True)
     parser.add_argument('--database', type=str, help='Track database save location', required=True)
     parser.add_argument('--index', type=str, help='Track lookup index save location', required=True)
-    parser.add_argument('--lookup_samples', type=int, help='Number of samples to lookup in kNN', default=100)
     args = parser.parse_args()
 
     with contextlib.suppress(FileNotFoundError):
