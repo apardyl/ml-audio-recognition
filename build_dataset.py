@@ -47,7 +47,7 @@ def gen_samples_for_track(file_path, out_dir):
 
         sample_length_points = int(OUT_FREQ * SAMPLE_LENGTH_S)
         idx = random.randint(0, track.shape[1] - sample_length_points - 1)
-        f = track[:, idx:idx + sample_length_points + 1].clone().data
+        f = track[:, idx:idx + sample_length_points].clone().data
 
         try:
             torch.save(f, dest_file)

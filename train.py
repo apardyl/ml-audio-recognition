@@ -7,8 +7,6 @@ import sys
 import warnings
 
 import numpy as np
-import tensorboard as tb
-import tensorflow as tf
 import torch.utils.data
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
@@ -19,8 +17,6 @@ from dataset import AudioSamplePairDataset
 from models import SmallEncoder, LargeEncoder
 from searcher import Searcher
 from utils import load_train_state, save_train_state
-
-tf.io.gfile = tb.compat.tensorflow_stub.io.gfile
 
 SAVED_MODELS_PATH = 'saved_models'
 CHECKPOINT_FILE = 'checkpoint.pck'
@@ -151,7 +147,7 @@ def train(large_model=False, epochs=30):
     train_loader = torch.utils.data.DataLoader(train_data,
                                                batch_size=TRAIN_BATCH_SIZE,
                                                shuffle=True,
-                                               num_workers=8,
+                                               num_workers=12,
                                                pin_memory=True,
                                                prefetch_factor=4)
     test_loader = torch.utils.data.DataLoader(test_data,

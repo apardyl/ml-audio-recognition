@@ -1,8 +1,10 @@
 import pathlib
 import random
+import sys
 
 import matplotlib.pyplot as plt
 import torch
+import torchaudio
 from sklearn.model_selection import train_test_split
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -10,6 +12,8 @@ from torchaudio.functional import amplitude_to_DB
 from torchaudio.transforms import MelSpectrogram, Vol
 
 from config import OUT_FREQ
+
+torchaudio.set_audio_backend('sox_io')
 
 
 def transform_distort_audio(x: Tensor):
@@ -111,6 +115,41 @@ class AudioSamplePairDualDataset(Dataset):
         y_l = transform_melspectrogram(y, True)
 
         return x_s, y_s, x_l, y_l
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+
+class AudioIndexingDataset(Dataset):
+    def __init__(self, root_path: str, limit=-1):
+        self.root_path = root_path
+        dataset = list(str(p) for p in pathlib.Path(root_path).rglob('*.mp3'))
+        self.dataset = dataset[0:limit]
+
+    def __getitem__(self, index):
+        file_path = self.dataset[index]
+        try:
+            track, sr = torchaudio.load(file_path, normalize=True, channels_first=True)
+            track = track.mean(dim=0, keepdim=True)
+            track = torchaudio.transforms.Resample(orig_freq=sr, new_freq=OUT_FREQ).forward(track)
+        except Exception as ex:
+            print("File {} invalid - {}".format(file_path, ex), file=sys.stderr)
+            return None
+        if track.shape[1] < OUT_FREQ * 10:
+            print("File {} too short".format(file_path), file=sys.stderr)
+            return None
+
+        sample_length_points = int(OUT_FREQ * 1)
+        idx = 0
+        track_len = track.shape[1]
+        samples_s = []
+        samples_l = []
+        while idx + sample_length_points < track_len:
+            sample = track[:, idx:idx + sample_length_points]
+            samples_s.append(transform_melspectrogram(sample, large=False))
+            samples_l.append(transform_melspectrogram(sample, large=True))
+            idx += sample_length_points
+        return file_path, torch.stack(samples_s, dim=0), torch.stack(samples_l, dim=0)
 
     def __len__(self) -> int:
         return len(self.dataset)

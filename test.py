@@ -6,9 +6,10 @@ from operator import itemgetter
 import torch
 
 from config import TEST_BATCH_SIZE
-from dataset import AudioSamplePairDualDataset
+from dataset import AudioSamplePairDualDataset, AudioSamplePairDataset
 from models import SmallEncoder, LargeEncoder
 from searcher import Searcher
+from train import evaluate_encoder
 from utils import load_model_state
 
 
@@ -41,6 +42,7 @@ def evaluate_all(small_encoder: SmallEncoder, large_encoder: LargeEncoder, test_
         correct_1 = sum(y == x[0] for y, x in enumerate(lookup[1]))
         print('Running verification')
         verified_1 = 0
+        verified_1l = 0
         s_embeddings_x = s_embeddings_x.numpy()
         s_embeddings_y = s_embeddings_y.numpy()
         l_embeddings_x = l_embeddings_x.numpy()
@@ -49,11 +51,17 @@ def evaluate_all(small_encoder: SmallEncoder, large_encoder: LargeEncoder, test_
             dists = [((((s_embeddings_x[v] - y_s) ** 2).mean() + ((l_embeddings_x[v] - y_l) ** 2).mean()), v)
                      for v in knn]
             best = min(dists, key=itemgetter(0))[1]
+            dists_l = [(((l_embeddings_x[v] - y_l) ** 2).mean(), v) for v in knn]
+            best_l = min(dists_l, key=itemgetter(0))[1]
             if best == idx:
                 verified_1 += 1
+            if best_l == idx:
+                verified_1l += 1
         print('Lookup accuracy: {}, correct guess: {}'.format(correct_100 / len(lookup[1]), correct_1 / len(lookup[1])))
-        print('Verification accuracy: {}'.format(verified_1 / correct_100))
-        print('Final accuracy: {}'.format(verified_1 / len(lookup[1])))
+        print('Verification accuracy: (single encoder) {}, (dual encoder) {}'.format(verified_1l / correct_100,
+                                                                                     verified_1 / correct_100))
+        print('Final accuracy: (single encoder) {}, (dual encoder) {}'.format(verified_1l / len(lookup[1]),
+                                                                              verified_1 / len(lookup[1])))
 
 
 if __name__ == "__main__":
